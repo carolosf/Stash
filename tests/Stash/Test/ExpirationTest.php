@@ -63,7 +63,7 @@ class ExpirationTest extends \PHPUnit_Framework_TestCase
 
     }
 
-    public function EphemeralExpiration()
+    public function testEphemeralExpiration()
     {
         $pool = new Pool(new Ephemeral());
         $this->assertExpire($pool, '1,', 100);
