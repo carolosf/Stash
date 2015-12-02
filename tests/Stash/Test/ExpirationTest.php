@@ -5,11 +5,26 @@ namespace Stash\Test;
 use Memcached;
 use Stash\Driver\Ephemeral;
 use Stash\Driver\Memcache;
+use Stash\Invalidation;
 use Stash\Pool;
 
 class ExpirationTest extends \PHPUnit_Framework_TestCase
 {
-    public function testMemcacheExpiration()
+    public function testMemcacheNormalExpiration()
+    {
+        $memcacheDriver = new Memcache();
+        $memcacheDriver->setOptions(
+            [
+                'servers' => ['localhost', 11211]
+            ]
+        );
+        $pool = new Pool($memcacheDriver);
+
+        $this->assertExpire($pool, '1,', 50, Invalidation::NONE);
+        $this->assertExpire($pool, '1,10,20,', 10, Invalidation::NONE);
+    }
+
+    public function testMemcacheBadExpiration()
     {
         $memcacheDriver = new Memcache();
         $memcacheDriver->setOptions(
@@ -20,8 +35,8 @@ class ExpirationTest extends \PHPUnit_Framework_TestCase
         $pool = new Pool($memcacheDriver);
 
 
-        $this->assertExpire($pool, '1,', 100);
-        $this->assertExpire($pool, '1,', 10);
+        $this->assertExpire($pool, '1,10,20,', 10, Invalidation::PRECOMPUTE);
+        // src/Stash/Item.php:503
     }
 
     public function testMemcachedDriver()
@@ -32,7 +47,7 @@ class ExpirationTest extends \PHPUnit_Framework_TestCase
 
         $i = 0;
         $output = '';
-        while ($i < 10) {
+        while ($i < 20) {
             ++$i;
             sleep(1);
 
@@ -44,11 +59,11 @@ class ExpirationTest extends \PHPUnit_Framework_TestCase
             }
         }
 
-        $this->assertEquals('1,', $output);
+        $this->assertEquals('1,11,', $output);
 
     }
 
-    public function testEphemeralExpiration()
+    public function EphemeralExpiration()
     {
         $pool = new Pool(new Ephemeral());
         $this->assertExpire($pool, '1,', 100);
@@ -56,22 +71,23 @@ class ExpirationTest extends \PHPUnit_Framework_TestCase
 
     /**
      * Should only count every time the cache expires
-     * @param $pool
-     * @param $expected
-     * @param $ttl
+     * @param Pool $pool
+     * @param string $expected
+     * @param integer $ttl
+     * @param $invalidation
      */
-    private function assertExpire($pool, $expected, $ttl)
+    private function assertExpire(Pool $pool, $expected, $ttl, $invalidation = 0)
     {
         $item = $pool->getItem('path/to/item');
         $item->clear();
 
         $i = 0;
         $output = '';
-        while ($i < 10) {
+        while ($i < 20) {
             ++$i;
             sleep(1);
 
-            $item->get();
+            $item->get($invalidation);
 
             if ($item->isMiss()) {
                 $output .= $i . ',';
